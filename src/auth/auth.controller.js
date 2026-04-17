@@ -1,10 +1,9 @@
 import { Router } from "express";
+import bcrypt from "bcrypt";
+import jwt from "jsonwebtoken";
+import { findByEmail } from "../user/user.service.js";
+
 const router = Router();
-import { compare } from "bcrypt";
-import { sign } from "jsonwebtoken";
-import { findByEmail } from "../user/user.service";
-
-
 
 router.post("/login", async (req, res) => {
   try {
@@ -16,13 +15,13 @@ router.post("/login", async (req, res) => {
       return res.status(404).json({ message: "Usuario no encontrado" });
     }
 
-    const valid = await compare(password, user.password);
+    const valid = await bcrypt.compare(password, user.password);
 
     if (!valid) {
       return res.status(401).json({ message: "Contraseña incorrecta" });
     }
 
-    const token = sign(
+    const token = jwt.sign(
       { id: user.id, email: user.email },
       process.env.SECRET_KEY,
       { expiresIn: "1h" }

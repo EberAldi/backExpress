@@ -1,6 +1,7 @@
 import { Router } from "express";
+import { createUser } from "./user.service.js";
+
 const router = Router();
-import {createUser} from "./user.service"
 
 router.post("/users", async (req, res) => {
   try {

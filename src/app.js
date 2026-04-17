@@ -1,13 +1,12 @@
-require("dotenv").config();
+import "dotenv/config";
+import express from "express";
+import { AppDataSource } from "./data-source.js";
 
-import express, { json } from "express";
-import { AppDataSource } from "./data-source";
-
-import userRoutes from "./user/user.controller";
-import authRoutes from "./auth/auth.controller";
+import userRoutes from "./user/user.controller.js";
+import authRoutes from "./auth/auth.controller.js";
 
 const app = express();
-app.use(json());
+app.use(express.json());
 
 const PORT = process.env.PORT || 3000;
 
@@ -22,4 +21,4 @@ AppDataSource.initialize()
       console.log(`Servidor en http://localhost:${PORT}`);
     });
   })
-  .catch((error) => console.log(error));
+  .catch(console.error);
