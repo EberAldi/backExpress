@@ -1,3 +1,4 @@
+// User.js
 import { EntitySchema } from "typeorm";
 
 const User = new EntitySchema({
@@ -18,6 +19,16 @@ const User = new EntitySchema({
     },
     password: {
       type: "varchar",
+      nullable: true,    
+    },
+    googleId: {
+      type: "varchar",
+      nullable: true,    
+      unique: true,
+    },
+    avatar: {
+      type: "varchar",
+      nullable: true,    
     },
   },
 });
