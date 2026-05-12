@@ -7,6 +7,7 @@ export async function getAll() {
   return repo().find({ relations: ["consola", "empleado"] });
 }
 
+
 export async function getById(id) {
   const sesion = await repo().findOne({
     where: { id },
@@ -23,27 +24,124 @@ export async function getActivas() {
   });
 }
 
-export async function abrir({ consolaId, empleadoId }) {
-  const consola = await consolaRepo().findOne({ where: { id: consolaId } });
-  if (!consola) throw { status: 404, message: "Consola no encontrada" };
-  if (consola.estado !== "disponible") {
-    throw { status: 400, message: `La consola está ${consola.estado}` };
+export async function abrir({
+  consolaId,
+  empleadoId,
+  juegoId = null,
+  duracionHoras = 1,
+}) {
+
+  const consola = await consolaRepo().findOne({
+    where: { id: consolaId }
+  });
+
+  if (!consola) {
+    throw {
+      status: 404,
+      message: "Consola no encontrada",
+    };
   }
 
-  // Abrir sesión
+  if (consola.estado !== "disponible") {
+    throw {
+      status: 400,
+      message: `La consola está ${consola.estado}`,
+    };
+  }
+
+  // validar juego en consola
+  if (juegoId) {
+
+    const juegoRepo = AppDataSource.getRepository("Juego");
+
+    const juego = await juegoRepo
+      .createQueryBuilder("juego")
+      .innerJoin(
+        "juego.consolas",
+        "consola",
+        "consola.id = :consolaId",
+        { consolaId }
+      )
+      .where("juego.id = :juegoId", { juegoId })
+      .getOne();
+
+    if (!juego) {
+      throw {
+        status: 400,
+        message: "Ese juego no está disponible en esta consola",
+      };
+    }
+  }
+
   const sesion = repo().create({
     consolaId,
     empleadoId,
+    juegoId,
+    duracionHoras,
     inicio: new Date(),
     estado: "activa",
     pagoEstado: "pendiente",
   });
+
   const saved = await repo().save(sesion);
 
-  // Marcar consola como ocupada
-  await consolaRepo().update(consolaId, { estado: "ocupada" });
+  // ocupar consola
+  await consolaRepo().update(consolaId, {
+    estado: "ocupada",
+  });
 
   return saved;
+}
+
+export async function autoCerrarSesiones() {
+
+  const sesiones = await repo().find({
+    where: {
+      estado: "activa",
+    },
+    relations: ["consola"],
+  });
+
+  const ahora = new Date();
+
+  for (const sesion of sesiones) {
+
+    const inicio = new Date(sesion.inicio);
+
+    const tiempoFinal = new Date(
+      inicio.getTime() + (sesion.duracionHoras * 60 * 60 * 1000)
+    );
+
+    // si ya expiró
+    if (ahora >= tiempoFinal) {
+
+     const totalMinutos = sesion.duracionHoras * 60;
+
+const costoConsola = parseFloat(
+  (
+    sesion.duracionHoras *
+    sesion.consola.precioPorHora
+  ).toFixed(2)
+);
+
+      await repo().update(sesion.id, {
+        fin: ahora,
+        totalMinutos,
+        costoConsola,
+        estado: "cerrada",
+      });
+
+      // liberar consola
+      await consolaRepo().update(sesion.consolaId, {
+        estado: "disponible",
+        usoHoy: () => "usoHoy + 1",
+      });
+
+      console.log(
+        `Sesión ${sesion.id} cerrada automáticamente`
+      );
+    }
+  }
 }
 
 export async function cerrar(id) {
@@ -78,4 +176,31 @@ export async function remove(id) {
     throw { status: 400, message: "No puedes eliminar una sesión activa" };
   }
   return repo().remove(sesion);
+}
+
+export async function agregarTiempo(id) {
+
+  const sesion = await repo().findOne({
+    where: { id },
+  })
+
+  if (!sesion) {
+
+    throw {
+      status: 404,
+      message: "Sesión no encontrada",
+    }
+  }
+
+  if (sesion.estado === "cerrada") {
+
+    throw {
+      status: 400,
+      message: "La sesión ya está cerrada",
+    }
+  }
+
+  sesion.duracionHoras += 1
+
+  return repo().save(sesion)
 }

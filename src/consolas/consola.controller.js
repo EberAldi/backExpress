@@ -1,14 +1,16 @@
 // routes/consolas.js
 import { Router } from "express";
 import { AppDataSource } from "../data-source.js";
-const router = Router();
-const consolaRepo = AppDataSource.getRepository("Consola");
-const controlRepo = AppDataSource.getRepository("Control");
 
-// GET /consolas — trae todas con sus controles
-router.get("/consolas", async (req, res) => {
+const router = Router();
+
+const consolaRepo = () => AppDataSource.getRepository("Consola");
+const controlRepo = () => AppDataSource.getRepository("Control");
+
+// GET /consolas
+router.get("/", async (req, res) => {
   try {
-    const consolas = await consolaRepo.find({
+    const consolas = await consolaRepo().find({
       relations: { controles: true },
     });
     res.json(consolas);
@@ -17,26 +19,30 @@ router.get("/consolas", async (req, res) => {
   }
 });
 
-// POST /consolas — crea consola + sus controles
-router.post("/consolas", async (req, res) => {
+// POST /consolas
+// body: { nombre, marca, precioPorHora, controles: [{ estado }] }
+router.post("/", async (req, res) => {
   try {
-    const { nombre, marca, estado, precioPorHora, cantidadControles = 0 } = req.body;
+    const { nombre, marca, precioPorHora, controles = [] } = req.body;
 
-    const consola = consolaRepo.create({ nombre, marca, estado, precioPorHora });
-    await consolaRepo.save(consola);
+    const consola = consolaRepo().create({ nombre, marca, precioPorHora });
+    await consolaRepo().save(consola);
 
-    if (cantidadControles > 0) {
-      const controles = Array.from({ length: cantidadControles }, () =>
-        controlRepo.create({ consola })
+    // Crear cada control con su estado individual
+    if (controles.length > 0) {
+      const nuevosControles = controles.map((ctrl) =>
+        controlRepo().create({
+          estado: ctrl.estado ?? "disponible",
+          consola,
+        })
       );
-      await controlRepo.save(controles);
+      await controlRepo().save(nuevosControles);
     }
 
-    const result = await consolaRepo.findOne({
+    const result = await consolaRepo().findOne({
       where: { id: consola.id },
       relations: { controles: true },
     });
-
     res.status(201).json(result);
   } catch (error) {
     res.status(500).json({ message: error.message });

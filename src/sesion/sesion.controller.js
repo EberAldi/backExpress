@@ -55,4 +55,22 @@ router.delete("/:id", async (req, res) => {
   }
 });
 
+// agregar tiempo
+router.patch("/:id/agregar-hora", async (req, res) => {
+  try {
+
+    res.json(
+      await sesionService.agregarTiempo(
+        Number(req.params.id),
+      )
+    )
+
+  } catch (e) {
+
+    res.status(e.status || 500).json({
+      message: e.message,
+    })
+  }
+})
+
 export default router;
