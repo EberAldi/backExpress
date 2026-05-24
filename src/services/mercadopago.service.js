@@ -1,12 +1,23 @@
+// src/services/mercadopago.service.js
+
 import {
   MercadoPagoConfig,
   Preference,
-} from "mercadopago";
+} from 'mercadopago'
+
+// ─────────────────────────────
+// CLIENTE
+// ─────────────────────────────
 
 const client = new MercadoPagoConfig({
   accessToken:
     process.env.MP_ACCESS_TOKEN,
-});
+})
+
+
+// ─────────────────────────────
+// CREAR PREFERENCIA SESIÓN
+// ─────────────────────────────
 
 export async function crearPreferenciaSesion({
   sesion,
@@ -15,7 +26,7 @@ export async function crearPreferenciaSesion({
 }) {
 
   const preference =
-    new Preference(client);
+    new Preference(client)
 
   const body = {
 
@@ -31,9 +42,10 @@ export async function crearPreferenciaSesion({
 
         quantity: 1,
 
-        currency_id: "MXN",
+        currency_id: 'MXN',
 
-        unit_price: Number(total),
+        unit_price:
+          Number(total),
       },
     ],
 
@@ -55,7 +67,8 @@ export async function crearPreferenciaSesion({
         `${process.env.FRONTEND_URL}/pago/pendiente`,
     },
 
-    auto_return: "approved",
+    auto_return:
+      'approved',
 
     payment_methods: {
 
@@ -65,19 +78,23 @@ export async function crearPreferenciaSesion({
     },
 
     metadata: {
-      sesionId: sesion.id,
-      consola: consola.nombre,
+      sesionId:
+        sesion.id,
+
+      consola:
+        consola.nombre,
     },
-  };
+  }
 
   const result =
     await preference.create({
       body,
-    });
+    })
 
   return {
 
-    preferenceId: result.id,
+    preferenceId:
+      result.id,
 
     initPoint:
       result.init_point,
@@ -87,5 +104,104 @@ export async function crearPreferenciaSesion({
 
     qr:
       `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(result.init_point)}`,
-  };
+  }
+}
+
+
+// ─────────────────────────────
+// CREAR PREFERENCIA GENÉRICA POS
+// ─────────────────────────────
+
+export async function crearPreferenciaGenerica({
+  total,
+  titulo,
+}) {
+
+  const preference =
+    new Preference(client)
+
+  const body = {
+
+    items: [
+      {
+        title:
+          titulo,
+
+        quantity: 1,
+
+        currency_id: 'MXN',
+
+        unit_price:
+          Number(total),
+      },
+    ],
+
+    notification_url:
+      `${process.env.BACKEND_URL}/pagos/webhook`,
+
+    back_urls: {
+
+      success:
+        `${process.env.FRONTEND_URL}/pago/exito`,
+
+      failure:
+        `${process.env.FRONTEND_URL}/pago/error`,
+
+      pending:
+        `${process.env.FRONTEND_URL}/pago/pendiente`,
+    },
+
+    auto_return:
+      'approved',
+  }
+
+  const result =
+    await preference.create({
+      body,
+    })
+
+  return {
+
+    preferenceId:
+      result.id,
+
+    initPoint:
+      result.init_point,
+
+    sandboxInitPoint:
+      result.sandbox_init_point,
+
+    qr:
+      `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(result.init_point)}`,
+  }
+}
+
+
+// ─────────────────────────────
+// OBTENER ESTADO DEL PAGO
+// ─────────────────────────────
+
+export async function obtenerEstadoPago(
+  paymentId
+) {
+
+  const response =
+    await fetch(
+      `https://api.mercadopago.com/v1/payments/${paymentId}`,
+      {
+        headers: {
+          Authorization:
+            `Bearer ${process.env.MP_ACCESS_TOKEN}`,
+        },
+      }
+    )
+
+  if (!response.ok) {
+
+    throw new Error(
+      'No se pudo obtener el pago'
+    )
+  }
+
+  return await response.json()
 }

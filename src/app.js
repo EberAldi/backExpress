@@ -45,7 +45,6 @@ AppDataSource.initialize()
     app.use("/juegos", juegoRoutes);
     app.use("/dashboard", dashboardRoutes);
 
-    // ← ESTA FALTABA
     app.use("/pagos", pagosRoutes);
 
     // AUTO CIERRE

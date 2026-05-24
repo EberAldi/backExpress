@@ -64,13 +64,19 @@ const Sesion = new EntitySchema({
       default: "pendiente",
     },
 
-    mpPreferenceId: {
-      type: "varchar",
-      nullable: true,
-    },
+    clienteId: { type: "uuid" }, // CRÍTICO
+reservacionId: { type: "uuid", nullable: true },
+turnoId: { type: "uuid", nullable: true },
+precioHoraAplicado: { type: "decimal", precision: 10, scale: 2 }, // guardar precio histórico
+configuracionAplicadaId: { type: "uuid", nullable: true }, // qué promoción se 
   },
 
   relations: {
+    pagos: {
+  type: "one-to-many",
+  target: "Pago",
+  inverseSide: "sesion"
+},
     consola: {
       type: "many-to-one",
       target: "Consola",

@@ -7,6 +7,8 @@ from "../data-source.js";
 
 import {
   crearPreferenciaSesion,
+  crearPreferenciaGenerica,
+  obtenerEstadoPago,
 } from "../services/mercadopago.service.js";
 
 const router = Router();
@@ -348,5 +350,36 @@ router.post('/efectivo', async (req, res) => {
   })
 })
 
+
+// ─────────────────────────────
+// ESTADO PAGO
+// ─────────────────────────────
+router.get(
+  '/estado/:paymentId',
+
+  async (req, res) => {
+
+    try {
+
+      const payment =
+        await obtenerEstadoPago(
+          req.params.paymentId
+        )
+
+      return res.json({
+        status:
+          payment.status,
+      })
+
+    } catch (error) {
+
+      return res.status(500)
+        .json({
+          message:
+            error.message,
+        })
+    }
+  }
+)
 export default router;
 

@@ -26,10 +26,18 @@ const User = new EntitySchema({
       nullable: true,    
       unique: true,
     },
+    rol: {
+  type: "enum",
+  enum: ["admin", "gerente", "empleado", "cajero"],
+  default: "empleado"
+},
     avatar: {
       type: "varchar",
       nullable: true,    
     },
+    permisos: { type: "jsonb", nullable: true }, // para permisos granulares
+activo: { type: "boolean", default: true },
+eliminadoEn: { type: "timestamp", nullable: true }
   },
 });
 

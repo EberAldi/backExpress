@@ -20,11 +20,14 @@
     "jsonwebtoken": "^9.0.3",
     "mercadopago": "^2.12.0",
     "morgan": "^1.10.1",
+    "nodemailer": "^8.0.8",
     "passport": "^0.7.0",
     "passport-google-oauth20": "^2.0.0",
     "pg": "^8.20.0",
     "reflect-metadata": "^0.2.2",
-    "typeorm": "^0.3.28"
+    "resend": "^6.12.3",
+    "typeorm": "^0.3.28",
+    "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@types/passport": "^1.0.17",
