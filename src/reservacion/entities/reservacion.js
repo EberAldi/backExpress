@@ -5,7 +5,6 @@ export default new EntitySchema({
   columns: {
     id: { primary: true, type: "uuid", generated: "uuid" },
     fechaInicio: { type: "timestamp" },
-    fechaFin: { type: "timestamp" },
     duracionHoras: { type: "int" },
     estado: {
       type: "enum",
@@ -18,7 +17,6 @@ export default new EntitySchema({
     // Referencias
     clienteId: { type: "uuid" },
     consolaId: { type: "int" },
-    empleadoId: { type: "int" }, // quien la creó
     // Auditoría
     creadoEn: { type: "timestamp", default: () => "CURRENT_TIMESTAMP" },
     canceladoEn: { type: "timestamp", nullable: true },
@@ -37,11 +35,6 @@ export default new EntitySchema({
       target: "Consola",
       joinColumn: { name: "consolaId" },
       onDelete: "RESTRICT"
-    },
-    empleado: {
-      type: "many-to-one",
-      target: "User",
-      joinColumn: { name: "empleadoId" }
     },
     sesion: {
       type: "one-to-one",

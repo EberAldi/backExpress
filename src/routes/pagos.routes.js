@@ -51,11 +51,12 @@ router.post(
           });
       }
 
+      // usa precio histórico guardado al abrir la sesión
       const total =
         Number(
           (
             sesion.duracionHoras *
-            sesion.consola.precioPorHora
+            sesion.precioHoraAplicado
           ).toFixed(2)
         );
 

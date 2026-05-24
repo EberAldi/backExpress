@@ -13,6 +13,11 @@ import productoRoutes from "./productos/productos.controller.js";
 import ventaRoutes from "./ventas/ventas.controller.js";
 import juegoRoutes from "./juegos/juegos.controller.js";
 import pagosRoutes from "./routes/pagos.routes.js"
+import pagoRoutes from "./pago/pago.controller.js"
+import clienteRoutes from "./cliente/cliente.controller.js"
+import configuracionRoutes from "./configuracion/configuracion.controller.js"
+import reservacionRoutes from "./reservacion/reservacion.controller.js"
+import promocionRoutes from "./promocion/promocion.controller.js"
 import dashboardRoutes from "./dashboard/dashboard.controller.js";
 import passport from "./auth/google.strategy.js";
 
@@ -35,17 +40,21 @@ AppDataSource.initialize()
 
     console.log("DB conectada");
 
-    app.use("/auth", authRoutes);
-    app.use("/consolas", consolaRoutes);
-    app.use("/controles", controlRoutes);
-    app.use("/users", userRoutes);
-    app.use("/sesiones", sesionRoutes);
-    app.use("/productos", productoRoutes);
-    app.use("/ventas", ventaRoutes);
-    app.use("/juegos", juegoRoutes);
-    app.use("/dashboard", dashboardRoutes);
-
-    app.use("/pagos", pagosRoutes);
+    app.use("/api/auth", authRoutes);
+    app.use("/api/consolas", consolaRoutes);
+    app.use("/api/controles", controlRoutes);
+    app.use("/api/users", userRoutes);
+    app.use("/api/sesiones", sesionRoutes);
+    app.use("/api/productos", productoRoutes);
+    app.use("/api/ventas", ventaRoutes);
+    app.use("/api/juegos", juegoRoutes);
+    app.use("/api/dashboard", dashboardRoutes);
+    app.use("/api/clientes", clienteRoutes);
+    app.use("/api/configuraciones", configuracionRoutes);
+    app.use("/api/reservaciones", reservacionRoutes);
+    app.use("/api/promociones", promocionRoutes);
+    app.use("/api/pagos", pagosRoutes);
+    app.use("/api/pagos", pagoRoutes);
 
     // AUTO CIERRE
     setInterval(async () => {

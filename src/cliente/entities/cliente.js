@@ -15,7 +15,8 @@ export default new EntitySchema({
     creadoEn: { type: "timestamp", default: () => "CURRENT_TIMESTAMP" },
     actualizadoEn: { type: "timestamp", default: () => "CURRENT_TIMESTAMP", onUpdate: "CURRENT_TIMESTAMP" },
     eliminadoEn: { type: "timestamp", nullable: true },
-    isActive: { type: "boolean", default: true }
+    isActive: { type: "boolean", default: true },
+    password: { type: "varchar", nullable: true }
   },
   relations: {
     sesiones: {

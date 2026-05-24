@@ -2,9 +2,13 @@ import { Router } from "express";
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import { findByEmail } from "../user/user.service.js";
+import { findByEmail as findClienteByEmail } from "../cliente/cliente.service.js";
 import passport from "./google.strategy.js";
 const router = Router();
 
+export const tokenBlacklist = new Set();
+
+// Login para empleados (users con rol)
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
@@ -22,7 +26,7 @@ router.post("/login", async (req, res) => {
     }
 
     const token = jwt.sign(
-      { id: user.id, email: user.email },
+      { id: user.id, email: user.email, rol: user.rol },
       process.env.SECRET_KEY,
       { expiresIn: "1h" }
     );
@@ -31,6 +35,48 @@ router.post("/login", async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
+});
+
+// Login exclusivo para clientes
+router.post("/cliente/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    const cliente = await findClienteByEmail(email);
+
+    if (!cliente) {
+      return res.status(404).json({ message: "Cliente no encontrado" });
+    }
+
+    if (!cliente.password) {
+      return res.status(401).json({ message: "Este cliente no tiene contraseña configurada" });
+    }
+
+    const valid = await bcrypt.compare(password, cliente.password);
+
+    if (!valid) {
+      return res.status(401).json({ message: "Contraseña incorrecta" });
+    }
+
+    const token = jwt.sign(
+      { id: cliente.id, email: cliente.email, nombre: cliente.nombre, rol: "cliente" },
+      process.env.SECRET_KEY,
+      { expiresIn: "8h" }
+    );
+
+    res.json({ token, cliente: { id: cliente.id, nombre: cliente.nombre, email: cliente.email } });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Logout (invalida el token en memoria)
+router.post("/logout", (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader?.startsWith("Bearer ")) {
+    tokenBlacklist.add(authHeader.split(" ")[1]);
+  }
+  res.json({ message: "Sesión cerrada correctamente" });
 });
 
 // ── Google OAuth ─────────────────────────────────────────────

@@ -23,7 +23,17 @@ const Venta = new EntitySchema({
     },
     sesionId: {
       type: "int",
-      nullable: true,  // puede venderse sin sesión abierta
+      nullable: true,
+    },
+    descuento: {
+      type: "decimal",
+      precision: 10,
+      scale: 2,
+      default: 0,
+    },
+    promocionId: {
+      type: "uuid",
+      nullable: true,
     },
   },
   relations: {

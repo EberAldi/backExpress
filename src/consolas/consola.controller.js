@@ -49,4 +49,39 @@ router.post("/", async (req, res) => {
   }
 });
 
+// PATCH /consolas/:id/estado — body: { estado: "disponible" | "ocupada" | "mantenimiento" }
+router.patch("/:id/estado", async (req, res) => {
+  try {
+    const { estado } = req.body;
+    const validos = ["disponible", "ocupada", "mantenimiento"];
+    if (!validos.includes(estado)) {
+      return res.status(400).json({ message: `Estado inválido. Permitidos: ${validos.join(", ")}` });
+    }
+    const consola = await consolaRepo().findOne({
+      where: { id: Number(req.params.id) },
+      relations: { controles: true },
+    });
+    if (!consola) return res.status(404).json({ message: "Consola no encontrada" });
+    await consolaRepo().update(Number(req.params.id), { estado });
+    res.json({ ...consola, estado });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
+// DELETE /consolas/:id
+router.delete("/:id", async (req, res) => {
+  try {
+    const consola = await consolaRepo().findOne({ where: { id: Number(req.params.id) } });
+    if (!consola) return res.status(404).json({ message: "Consola no encontrada" });
+    if (consola.estado === "ocupada") {
+      return res.status(400).json({ message: "No se puede eliminar una consola ocupada" });
+    }
+    await consolaRepo().remove(consola);
+    res.json({ message: "Consola eliminada", id: Number(req.params.id) });
+  } catch (error) {
+    res.status(500).json({ message: error.message });
+  }
+});
+
 export default router;

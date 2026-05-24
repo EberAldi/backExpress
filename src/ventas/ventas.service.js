@@ -1,8 +1,6 @@
 import { AppDataSource } from "../data-source.js";
 
 const repo = () => AppDataSource.getRepository("Venta");
-const detalleRepo = () => AppDataSource.getRepository("DetalleVenta");
-const productoRepo = () => AppDataSource.getRepository("Producto");
 
 export async function getAll() {
   return repo().find({ relations: ["empleado", "sesion", "detalles", "detalles.producto"] });
@@ -29,20 +27,20 @@ export async function getBySesion(sesionId) {
   {
     empleadoId: 1,
     sesionId: 3,          // opcional
+    promocionId: "uuid",  // opcional — aplica descuento al total
     items: [
       { productoId: 1, cantidad: 2 },
       { productoId: 4, cantidad: 1 }
     ]
   }
 */
-export async function create({ empleadoId, sesionId = null, items }) {
+export async function create({ empleadoId, sesionId = null, items, promocionId = null }) {
   if (!items || items.length === 0) {
     throw { status: 400, message: "La venta debe tener al menos un producto" };
   }
 
-  // Usar transacción para que si falla algo todo se revierta
   return AppDataSource.transaction(async (manager) => {
-    let total = 0;
+    let subtotalBruto = 0;
     const detalles = [];
 
     for (const item of items) {
@@ -53,34 +51,57 @@ export async function create({ empleadoId, sesionId = null, items }) {
       }
 
       const subtotal = parseFloat((producto.precio * item.cantidad).toFixed(2));
-      total += subtotal;
+      subtotalBruto += subtotal;
 
       detalles.push({
         productoId: item.productoId,
         cantidad: item.cantidad,
-        precioUnitario: producto.precio,  // snapshot del precio actual
+        precioUnitario: producto.precio,
         subtotal,
       });
 
-      // Descontar stock
       await manager.update("Producto", item.productoId, {
         stock: producto.stock - item.cantidad,
       });
     }
 
-    // Guardar venta
+    // aplicar promoción si viene
+    let descuento = 0;
+    if (promocionId) {
+      const promocion = await manager.findOne("Promocion", {
+        where: { id: promocionId, activo: true },
+      });
+      if (!promocion) throw { status: 404, message: "Promoción no encontrada o inactiva" };
+
+      const hoy = new Date();
+      if (hoy < new Date(promocion.fechaInicio) || hoy > new Date(promocion.fechaFin)) {
+        throw { status: 400, message: "La promoción no está vigente" };
+      }
+
+      if (promocion.tipo === "descuento_porcentaje") {
+        descuento = parseFloat((subtotalBruto * (promocion.valor / 100)).toFixed(2));
+      } else if (promocion.tipo === "descuento_fijo") {
+        descuento = parseFloat(Math.min(Number(promocion.valor), subtotalBruto).toFixed(2));
+      } else if (promocion.tipo === "2x1") {
+        // paga la mitad del total
+        descuento = parseFloat((subtotalBruto / 2).toFixed(2));
+      }
+    }
+
+    const total = parseFloat((subtotalBruto - descuento).toFixed(2));
+
     const venta = manager.create("Venta", {
       empleadoId,
       sesionId,
-      total: parseFloat(total.toFixed(2)),
+      total,
+      descuento,
+      promocionId: promocionId ?? null,
     });
     const ventaGuardada = await manager.save("Venta", venta);
 
-    // Guardar detalles
     const detallesConVenta = detalles.map((d) => ({ ...d, ventaId: ventaGuardada.id }));
     await manager.save("DetalleVenta", detallesConVenta);
 
-    // Regresar venta completa
     return manager.findOne("Venta", {
       where: { id: ventaGuardada.id },
       relations: ["detalles", "detalles.producto"],
@@ -90,6 +111,5 @@ export async function create({ empleadoId, sesionId = null, items }) {
 
 export async function remove(id) {
   const venta = await getById(id);
-  // Los detalles se eliminan en cascada (CASCADE en la entidad)
   return repo().remove(venta);
 }
