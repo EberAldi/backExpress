@@ -30,17 +30,17 @@ router.post("/sesiones/:id/pago", async (req, res) => {
       (sesion.duracionHoras * sesion.precioHoraAplicado).toFixed(2)
     );
 
-    const mp = await crearPreferenciaSesion({ sesion, consola: sesion.consola, total });
-
-    // Registrar el pago como pendiente en BD
+    // Crear el pago primero para tener el ID antes de mandárselo a MP
     const pago = pagoRepo().create({
       monto: total,
       metodoPago: "mercadopago",
       estado: "pendiente",
-      mpPreferenceId: mp.preferenceId,
       sesionId: sesion.id,
     });
     await pagoRepo().save(pago);
+
+    const mp = await crearPreferenciaSesion({ sesion, consola: sesion.consola, total, pagoId: pago.id });
+    await pagoRepo().update(pago.id, { mpPreferenceId: mp.preferenceId });
 
     return res.json({
       ok: true,
@@ -135,17 +135,13 @@ router.post("/webhook", async (req, res) => {
         ? "procesando"
         : "fallido";
 
-    const sesionId = payment.external_reference
-      ? Number(payment.external_reference)
-      : null;
+    // external_reference ahora es el pagoId interno (UUID)
+    const pagoId = payment.external_reference ?? null;
 
-    // Buscar el registro Pago pendiente que se creó al generar la preferencia
-    let pago = null;
-    if (sesionId) {
-      pago = await pagoRepo().findOne({
-        where: { sesionId, metodoPago: "mercadopago", estado: "pendiente" },
-      });
-    }
+    // Buscar siempre por ID interno — nunca crea duplicados
+    const pago = pagoId
+      ? await pagoRepo().findOne({ where: { id: pagoId } })
+      : null;
 
     if (pago) {
       pago.mpPaymentId = String(data.id);
@@ -153,28 +149,15 @@ router.post("/webhook", async (req, res) => {
       pago.estado = nuevoEstado;
       if (nuevoEstado === "completado") pago.procesadoEn = new Date();
       await pagoRepo().save(pago);
-    } else {
-      // Fallback: MP puede notificar sin que hayamos creado la preferencia localmente
-      const pagoFallback = pagoRepo().create({
-        monto: payment.transaction_amount ?? 0,
-        metodoPago: "mercadopago",
-        estado: nuevoEstado,
-        mpPaymentId: String(data.id),
-        mpStatus: payment.status,
-        ...(sesionId ? { sesionId } : {}),
-        ...(nuevoEstado === "completado" ? { procesadoEn: new Date() } : {}),
-      });
-      await pagoRepo().save(pagoFallback);
     }
 
     // Marcar la sesión como pagada
-    if (payment.status === "approved" && sesionId) {
-      const sesion = await sesionRepo().findOne({ where: { id: sesionId } });
+    if (payment.status === "approved" && pago?.sesionId) {
+      const sesion = await sesionRepo().findOne({ where: { id: pago.sesionId } });
       if (sesion) {
         sesion.pagoEstado = "pagado";
         await sesionRepo().save(sesion);
-        console.log(`[webhook] Sesión ${sesionId} marcada como pagada`);
-        notificarPagoAprobado(sesionId, payment.transaction_amount ?? 0).catch(console.error);
+        notificarPagoAprobado(pago.sesionId, payment.transaction_amount ?? 0).catch(console.error);
         if (sesion.clienteId) {
           const monto = payment.transaction_amount ?? 0;
           await sumarPuntos(sesion.clienteId, Math.floor(monto / 20), "pago", `Pago MercadoPago $${monto}`);
@@ -195,19 +178,19 @@ router.post("/qr", async (req, res) => {
   try {
     const { total, titulo, ventaId = null, sesionId = null } = req.body ?? {};
 
-    const mp = await crearPreferenciaGenerica({ total, titulo, ventaId });
-
     const pagoData = {
       monto: Number(total),
       metodoPago: "mercadopago",
       estado: "pendiente",
-      mpPreferenceId: mp.preferenceId,
     };
     if (ventaId) pagoData.ventaId = ventaId;
     if (sesionId) pagoData.sesionId = Number(sesionId);
 
     const pago = pagoRepo().create(pagoData);
     await pagoRepo().save(pago);
+
+    const mp = await crearPreferenciaGenerica({ total, titulo, pagoId: pago.id, ventaId });
+    await pagoRepo().update(pago.id, { mpPreferenceId: mp.preferenceId });
 
     return res.json({
       ok: true,

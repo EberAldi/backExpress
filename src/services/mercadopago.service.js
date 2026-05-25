@@ -7,7 +7,7 @@ const client = new MercadoPagoConfig({
 });
 
 // ── Preferencia para cobrar una sesión ────────────────────────
-export async function crearPreferenciaSesion({ sesion, consola, total }) {
+export async function crearPreferenciaSesion({ sesion, consola, total, pagoId }) {
   const preference = new Preference(client);
 
   const backUrls = {
@@ -16,7 +16,6 @@ export async function crearPreferenciaSesion({ sesion, consola, total }) {
     pending: `${process.env.FRONTEND_URL}/pago/pendiente`,
   };
 
-  // auto_return solo funciona con URLs públicas (no localhost)
   const esLocal = (process.env.FRONTEND_URL ?? "").includes("localhost");
 
   const body = {
@@ -30,13 +29,12 @@ export async function crearPreferenciaSesion({ sesion, consola, total }) {
         unit_price: Number(total),
       },
     ],
-    external_reference: String(sesion.id),
-    // BASE_URL = URL pública del backend (usada por MercadoPago para notificaciones)
+    external_reference: pagoId,
     notification_url: `${process.env.BASE_URL}/api/pagos/webhook`,
     back_urls: backUrls,
     ...(esLocal ? {} : { auto_return: "approved" }),
     payment_methods: { installments: 12 },
-    metadata: { sesionId: sesion.id, consola: consola.nombre },
+    metadata: { sesionId: sesion.id, pagoId, consola: consola.nombre },
   };
 
   const result = await preference.create({ body });
@@ -51,7 +49,7 @@ export async function crearPreferenciaSesion({ sesion, consola, total }) {
 }
 
 // ── Preferencia genérica (POS / venta directa) ────────────────
-export async function crearPreferenciaGenerica({ total, titulo, ventaId = null }) {
+export async function crearPreferenciaGenerica({ total, titulo, pagoId, ventaId = null }) {
   const preference = new Preference(client);
 
   const esLocal = (process.env.FRONTEND_URL ?? "").includes("localhost");
@@ -65,7 +63,7 @@ export async function crearPreferenciaGenerica({ total, titulo, ventaId = null }
         unit_price: Number(total),
       },
     ],
-    ...(ventaId ? { external_reference: String(ventaId) } : {}),
+    external_reference: pagoId,
     notification_url: `${process.env.BASE_URL}/api/pagos/webhook`,
     back_urls: {
       success: `${process.env.FRONTEND_URL}/pago/exito`,
