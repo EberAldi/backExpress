@@ -101,13 +101,15 @@ router.patch("/sesiones/:id/efectivo", async (req, res) => {
 // MercadoPago notifica aquí cuando un pago cambia de estado
 router.post("/webhook", async (req, res) => {
   try {
-    const { type, data } = req.body ?? {};
+    const type = req.body?.type ?? req.query?.type;
+    const data = req.body?.data ?? { id: req.query?.["data.id"] };
     if (type !== "payment") return res.sendStatus(200);
 
-    // Verificar firma HMAC si está configurado el secret
+    // Verificar firma HMAC solo en producción
+    const isSandbox = process.env.MP_SANDBOX === "true";
     const xSignature = req.headers["x-signature"];
     const xRequestId = req.headers["x-request-id"];
-    if (xSignature && process.env.MP_WEBHOOK_SECRET) {
+    if (!isSandbox && xSignature && process.env.MP_WEBHOOK_SECRET) {
       const [tsPart, v1Part] = xSignature.split(",");
       const ts = tsPart.split("=")[1];
       const v1 = v1Part.split("=")[1];
