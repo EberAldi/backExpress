@@ -19,10 +19,16 @@ export async function getAll() {
   });
 }
 
+export async function getByPuntos() {
+  return repo().find({
+    where: { isActive: true },
+    order: { puntosAcumulados: "DESC" },
+  });
+}
+
 export async function getById(id) {
   const cliente = await repo().findOne({
     where: { id, isActive: true },
-    relations: ["sesiones", "reservaciones"],
   });
   if (!cliente) throw { status: 404, message: `Cliente con ID ${id} no encontrado` };
   return cliente;
@@ -54,42 +60,99 @@ export async function remove(id) {
 export async function getReservaciones(id) {
   const cliente = await repo().findOne({ where: { id, isActive: true } });
   if (!cliente) throw { status: 404, message: `Cliente con ID ${id} no encontrado` };
-  return AppDataSource.getRepository("Reservacion").find({
+
+  return AppDataSource.getRepository("Reservacion")
+    .createQueryBuilder("reservacion")
+    .leftJoinAndSelect("reservacion.consola", "consola")
+    .leftJoinAndSelect("reservacion.sesion", "sesion")
+    .where("reservacion.clienteId = :id", { id })
+    .orderBy("reservacion.creadoEn", "DESC")
+    .getMany();
+}
+
+export async function getHistorialPuntos(id, limit = 20) {
+  const cliente = await repo().findOne({ where: { id, isActive: true } });
+  if (!cliente) throw { status: 404, message: `Cliente con ID ${id} no encontrado` };
+
+  const movimientos = await AppDataSource.getRepository("HistorialPuntos").find({
     where: { clienteId: id },
-    relations: ["consola"],
     order: { creadoEn: "DESC" },
+    take: limit,
+  });
+
+  return {
+    clienteId: cliente.id,
+    nombre: cliente.nombre,
+    puntosActuales: cliente.puntosAcumulados,
+    movimientos,
+  };
+}
+
+const PUNTOS_POR_PESO = 1 / 20;
+const PUNTOS_POR_HORA = 10;
+
+async function registrarMovimiento(clienteId, puntos, tipo, descripcion) {
+  const cliente = await repo().findOne({ where: { id: clienteId } });
+  if (!cliente) return;
+  const saldoAnterior = cliente.puntosAcumulados;
+  const saldoNuevo = saldoAnterior + puntos;
+  await repo().update(clienteId, { puntosAcumulados: saldoNuevo });
+  await AppDataSource.getRepository("HistorialPuntos").save({
+    clienteId,
+    puntos,
+    tipo,
+    descripcion,
+    saldoAnterior,
+    saldoNuevo,
   });
 }
 
-const PUNTOS_POR_PESO = 1 / 10; // 1 punto por cada $10
+export async function sumarPuntos(clienteId, puntos, tipo = "pago", descripcion = "") {
+  if (!clienteId || puntos <= 0) return;
+  await registrarMovimiento(clienteId, puntos, tipo, descripcion);
+}
+
+export async function restarPuntos(clienteId, puntos, descripcion = "") {
+  if (!clienteId || puntos <= 0) return;
+  await registrarMovimiento(clienteId, -puntos, "canje", descripcion);
+}
 
 export async function getHistorial(id, limit = 10) {
   const cliente = await repo().findOne({ where: { id, isActive: true } });
   if (!cliente) throw { status: 404, message: `Cliente con ID ${id} no encontrado` };
 
-  const sesiones = await AppDataSource.getRepository("Sesion").find({
-    where: { clienteId: id },
-    relations: ["consola", "ventas", "ventas.detalles", "ventas.detalles.producto"],
-    order: { inicio: "DESC" },
-    take: limit,
-  });
+  // QueryBuilder evita conflictos con eager loading de detalles en Venta
+  const sesiones = await AppDataSource.getRepository("Sesion")
+    .createQueryBuilder("sesion")
+    .leftJoinAndSelect("sesion.consola", "consola")
+    .leftJoinAndSelect("sesion.ventas", "venta")
+    .leftJoinAndSelect("venta.detalles", "detalle")
+    .leftJoinAndSelect("detalle.producto", "producto")
+    .where("sesion.clienteId = :id", { id })
+    .orderBy("sesion.inicio", "DESC")
+    .take(limit)
+    .getMany();
 
   const historial = sesiones.map((sesion) => {
-    const puntosConsola = Math.floor((parseFloat(sesion.costoConsola) || 0) * PUNTOS_POR_PESO);
+    const puntosConsola = (sesion.duracionHoras || 0) * PUNTOS_POR_HORA;
 
-    const compras = (sesion.ventas || []).map((venta) => ({
-      ventaId: venta.id,
-      fecha: venta.creadoEn,
-      total: parseFloat(venta.total),
-      descuento: parseFloat(venta.descuento),
-      puntosGanados: Math.floor(parseFloat(venta.total) * PUNTOS_POR_PESO),
-      productos: (venta.detalles || []).map((d) => ({
-        nombre: d.producto?.nombre ?? "Producto eliminado",
-        cantidad: d.cantidad,
-        precioUnitario: parseFloat(d.precioUnitario),
-        subtotal: parseFloat(d.subtotal),
-      })),
-    }));
+    const compras = (sesion.ventas || []).map((venta) => {
+      const totalVenta = parseFloat(venta.total) || 0;
+      const descuento = parseFloat(venta.descuento) || 0;
+      return {
+        ventaId: venta.id,
+        fecha: venta.creadoEn,
+        total: totalVenta,
+        descuento,
+        puntosGanados: Math.floor(totalVenta * PUNTOS_POR_PESO),
+        productos: (venta.detalles || []).map((d) => ({
+          nombre: d.producto?.nombre ?? "Producto eliminado",
+          cantidad: d.cantidad,
+          precioUnitario: parseFloat(d.precioUnitario),
+          subtotal: parseFloat(d.subtotal),
+        })),
+      };
+    });
 
     const puntosCompras = compras.reduce((acc, c) => acc + c.puntosGanados, 0);
 
@@ -99,6 +162,8 @@ export async function getHistorial(id, limit = 10) {
       inicio: sesion.inicio,
       fin: sesion.fin,
       estado: sesion.estado,
+      pagoEstado: sesion.pagoEstado,
+      duracionHoras: sesion.duracionHoras,
       costoConsola: parseFloat(sesion.costoConsola) || null,
       puntosConsola,
       compras,
@@ -108,6 +173,8 @@ export async function getHistorial(id, limit = 10) {
   });
 
   return {
+    clienteId: cliente.id,
+    nombre: cliente.nombre,
     puntosActuales: cliente.puntosAcumulados,
     totalSesiones: historial.length,
     sesiones: historial,

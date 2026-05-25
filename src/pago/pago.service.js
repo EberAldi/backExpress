@@ -7,7 +7,7 @@ export async function getAll(estado) {
   if (estado) where.estado = estado;
   return repo().find({
     where,
-    relations: ["sesion", "reservacion"],
+    relations: ["sesion", "reservacion", "venta"],
     order: { creadoEn: "DESC" },
   });
 }
@@ -15,7 +15,7 @@ export async function getAll(estado) {
 export async function getById(id) {
   const pago = await repo().findOne({
     where: { id },
-    relations: ["sesion", "reservacion"],
+    relations: ["sesion", "reservacion", "venta"],
   });
   if (!pago) throw { status: 404, message: `Pago con ID ${id} no encontrado` };
   return pago;

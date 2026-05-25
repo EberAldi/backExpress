@@ -51,6 +51,7 @@ const Sesion = new EntitySchema({
 
     empleadoId: {
       type: "int",
+      nullable: true,
     },
 
     juegoId: {
@@ -64,8 +65,9 @@ const Sesion = new EntitySchema({
       default: "pendiente",
     },
 
-    clienteId: { type: "uuid" }, // CRÍTICO
-reservacionId: { type: "uuid", nullable: true },
+    clienteId: { type: "uuid", nullable: true },
+    reservacionId: { type: "uuid", nullable: true },
+    avisoFinalEnviado: { type: "boolean", default: false },
 turnoId: { type: "uuid", nullable: true },
 precioHoraAplicado: { type: "decimal", precision: 10, scale: 2 }, // guardar precio histórico
 configuracionAplicadaId: { type: "uuid", nullable: true }, // qué promoción se 
@@ -102,6 +104,20 @@ configuracionAplicadaId: { type: "uuid", nullable: true }, // qué promoción se
       target: "Juego",
       joinColumn: { name: "juegoId" },
       onDelete: "SET NULL",
+    },
+
+    reservacion: {
+      type: "one-to-one",
+      target: "Reservacion",
+      joinColumn: { name: "reservacionId" },
+      nullable: true,
+    },
+
+    cliente: {
+      type: "many-to-one",
+      target: "Cliente",
+      joinColumn: { name: "clienteId" },
+      nullable: true,
     },
   },
 });

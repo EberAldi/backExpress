@@ -1,9 +1,8 @@
-// src/auth/google.strategy.js
 import passport from "passport";
 import { Strategy as GoogleStrategy } from "passport-google-oauth20";
-import { AppDataSource } from "../data-source.js";  // tu DataSource
+import { AppDataSource } from "../data-source.js";
 
-const userRepo = () => AppDataSource.getRepository("User");
+const repo = () => AppDataSource.getRepository("Cliente");
 
 passport.use(
   new GoogleStrategy(
@@ -14,39 +13,33 @@ passport.use(
     },
     async (accessToken, refreshToken, profile, done) => {
       try {
-        const repo = userRepo();
-
-        // 1. ¿Ya existe por googleId?
-        let user = await repo.findOne({
-          where: { googleId: profile.id },
+        // 1. ¿Ya tiene cuenta vinculada con Google?
+        let cliente = await repo().findOne({
+          where: { googleId: profile.id, isActive: true },
         });
+        if (cliente) return done(null, cliente);
 
-        if (user) return done(null, user);
-
-        // 2. ¿Existe por email? (alguien que ya tenía cuenta normal)
-        const email = profile.emails[0].value;
-        user = await repo.findOne({ where: { email } });
-
-        if (user) {
-          // Vincular cuenta existente con Google
-          user.googleId = profile.id;
-          user.avatar = profile.photos[0]?.value ?? null;
-          await repo.save(user);
-          return done(null, user);
+        // 2. ¿Existe por email? → vincular
+        const email = profile.emails?.[0]?.value ?? null;
+        if (email) {
+          cliente = await repo().findOne({ where: { email, isActive: true } });
+          if (cliente) {
+            cliente.googleId = profile.id;
+            cliente.avatar = profile.photos?.[0]?.value ?? cliente.avatar;
+            await repo().save(cliente);
+            return done(null, cliente);
+          }
         }
 
-        // 3. Crear usuario nuevo
-        const newUser = repo.create({
-          name: profile.displayName,
+        // 3. Cliente nuevo
+        const nuevo = repo().create({
+          nombre: profile.displayName,
           email,
           googleId: profile.id,
-          avatar: profile.photos[0]?.value ?? null,
-          password: null,
+          avatar: profile.photos?.[0]?.value ?? null,
         });
-
-        await repo.save(newUser);
-        return done(null, newUser);
-
+        await repo().save(nuevo);
+        return done(null, nuevo);
       } catch (error) {
         return done(error, null);
       }

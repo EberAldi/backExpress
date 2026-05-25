@@ -23,7 +23,12 @@ const User = new EntitySchema({
     },
     googleId: {
       type: "varchar",
-      nullable: true,    
+      nullable: true,
+      unique: true,
+    },
+    auth0Id: {
+      type: "varchar",
+      nullable: true,
       unique: true,
     },
     rol: {
@@ -35,9 +40,10 @@ const User = new EntitySchema({
       type: "varchar",
       nullable: true,    
     },
-    permisos: { type: "jsonb", nullable: true }, // para permisos granulares
-activo: { type: "boolean", default: true },
-eliminadoEn: { type: "timestamp", nullable: true }
+    permisos: { type: "jsonb", nullable: true },
+    activo: { type: "boolean", default: true },
+    eliminadoEn: { type: "timestamp", nullable: true },
+    pushSubscription: { type: "text", nullable: true }
   },
 });
 

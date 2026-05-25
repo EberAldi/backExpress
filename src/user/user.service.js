@@ -65,4 +65,10 @@ export async function remove(id) {
   if (!user) throw { status: 404, message: "Usuario no encontrado" };
   return repo().remove(user);
 }
+
+export async function savePushSubscription(id, subscription) {
+  const user = await repo().findOne({ where: { id } });
+  if (!user) throw { status: 404, message: "Usuario no encontrado" };
+  await repo().update(id, { pushSubscription: JSON.stringify(subscription) });
+}
  

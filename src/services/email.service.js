@@ -1,242 +1,153 @@
-import { Injectable } from '@nestjs/common';
-import { Resend } from 'resend';
+import { Resend } from "resend";
 
-@Injectable()
-export class EmailService {
-  constructor() {
-    this.resend = new Resend(process.env.RESEND_API_KEY);
-  }
+const resend = new Resend(process.env.RESEND_API_KEY);
+const FROM = process.env.RESEND_FROM_EMAIL ?? "onboarding@resend.dev";
 
-  async enviarConfirmacionReservacion(cliente, reservacion) {
-    const fecha = new Date(reservacion.fechaInicio);
-    const hora = fecha.toLocaleTimeString('es-MX', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
+export async function enviarConfirmacionReservacion(cliente, reservacion) {
+  if (!cliente?.email) return;
+
+  const inicio = new Date(reservacion.fechaInicio);
+  const fin = new Date(
+    inicio.getTime() + (reservacion.duracionHoras ?? 1) * 60 * 60 * 1000
+  );
+
+  const fmt = (d) =>
+    d.toLocaleDateString("es-MX", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
-    const dia = fecha.toLocaleDateString('es-MX', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
 
-    const html = this.generarTemplateConfirmacion({
+  const estado = reservacion.estado ?? "pendiente";
+
+  await resend.emails.send({
+    from: `Cyber Gaming <${FROM}>`,
+    to: cliente.email,
+    subject: "Reserva confirmada",
+    html: templateConfirmacion({
       nombreCliente: cliente.nombre,
-      nombreConsola: reservacion.consola.nombre,
-      dia,
-      hora,
-      duracion: reservacion.duracionHoras,
-      total: reservacion.costoTotal,
-      idReservacion: reservacion.id
-    });
+      idReservacion: reservacion.id,
+      nombreConsola: reservacion.consola?.nombre ?? "N/A",
+      fechaInicio: fmt(inicio),
+      fechaLimite: fmt(fin),
+      estado: estado.charAt(0).toUpperCase() + estado.slice(1),
+    }),
+  }).catch((err) => console.error("[email] Error enviando confirmación:", err));
+}
 
-    try {
-      await this.resend.emails.send({
-        from: 'Cyber Gaming <onboarding@resend.dev>', // Cambiar por tu dominio
-        to: cliente.email,
-        subject: `✅ Reservación confirmada - ${reservacion.consola.nombre}`,
-        html
-      });
-      
-      console.log(`✅ Email enviado a ${cliente.email}`);
-    } catch (error) {
-      console.error('Error enviando email:', error);
-      throw error;
-    }
-  }
+export async function enviarCancelacionReservacion(cliente, reservacion, motivo) {
+  if (!cliente?.email) return;
 
-  async enviarCancelacionReservacion(cliente, reservacion, motivo) {
-    const html = this.generarTemplateCancelacion({
+  await resend.emails.send({
+    from: `Cyber Gaming <${FROM}>`,
+    to: cliente.email,
+    subject: "Reservación cancelada",
+    html: templateCancelacion({
       nombreCliente: cliente.nombre,
-      nombreConsola: reservacion.consola.nombre,
-      fechaOriginal: new Date(reservacion.fechaInicio).toLocaleDateString('es-MX'),
-      motivo: motivo || 'No especificado'
-    });
+      nombreConsola: reservacion.consola?.nombre ?? "N/A",
+      fechaOriginal: new Date(reservacion.fechaInicio).toLocaleDateString("es-MX"),
+      motivo: motivo ?? "No especificado",
+    }),
+  }).catch((err) => console.error("[email] Error enviando cancelación:", err));
+}
 
-    await this.resend.emails.send({
-      from: 'Cyber Gaming <onboarding@resend.dev>',
-      to: cliente.email,
-      subject: `❌ Reservación cancelada`,
-      html
-    });
-  }
+// ── Templates ─────────────────────────────────────────────────
 
-  async enviarRecordatorio24h(cliente, reservacion) {
-    const fecha = new Date(reservacion.fechaInicio);
-    const hora = fecha.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
-
-    const html = this.generarTemplateRecordatorio({
-      nombreCliente: cliente.nombre,
-      nombreConsola: reservacion.consola.nombre,
-      hora,
-      duracion: reservacion.duracionHoras
-    });
-
-    await this.resend.emails.send({
-      from: 'Cyber Gaming <onboarding@resend.dev>',
-      to: cliente.email,
-      subject: `⏰ Recordatorio: Tu reservación es mañana`,
-      html
-    });
-  }
-
-  generarTemplateConfirmacion(data) {
-    return `
-<!DOCTYPE html>
-<html>
+function templateConfirmacion({ nombreCliente, idReservacion, nombreConsola, fechaInicio, fechaLimite, estado }) {
+  return `<!DOCTYPE html>
+<html lang="es">
 <head>
   <meta charset="utf-8">
   <style>
-    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-    .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-    .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
-    .card { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-    .detail-row { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #e5e7eb; }
-    .detail-label { font-weight: 600; color: #6b7280; }
-    .detail-value { color: #111827; }
-    .total { background: #667eea; color: white; padding: 15px; border-radius: 8px; text-align: center; font-size: 20px; font-weight: bold; margin-top: 20px; }
-    .footer { text-align: center; padding: 20px; color: #6b7280; font-size: 14px; }
-    .button { display: inline-block; background: #667eea; color: white; padding: 12px 30px; text-decoration: none; border-radius: 6px; margin: 20px 0; }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{font-family:Arial,sans-serif;background:#f3f4f6;color:#333;padding:20px}
+    .wrap{max-width:600px;margin:0 auto}
+    .header{background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;padding:32px;text-align:center;border-radius:12px 12px 0 0}
+    .header h1{font-size:22px;margin-top:8px}
+    .body{background:#fff;padding:28px;border-radius:0 0 12px 12px;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+    .card{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:16px;margin:20px 0}
+    .row{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #e5e7eb;font-size:14px}
+    .row:last-child{border-bottom:none}
+    .label{color:#6b7280;font-weight:600}
+    .badge{background:#d1fae5;color:#065f46;padding:3px 10px;border-radius:20px;font-weight:700;font-size:13px}
+    .footer{text-align:center;font-size:12px;color:#9ca3af;margin-top:24px}
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="header">
-      <h1>🎮 Reservación Confirmada</h1>
-    </div>
-    
-    <div class="content">
-      <p>Hola <strong>${data.nombreCliente}</strong>,</p>
-      <p>Tu reservación ha sido confirmada exitosamente.</p>
-      
-      <div class="card">
-        <h2 style="margin-top: 0; color: #667eea;">Detalles de tu reservación</h2>
-        
-        <div class="detail-row">
-          <span class="detail-label">Consola:</span>
-          <span class="detail-value">${data.nombreConsola}</span>
-        </div>
-        
-        <div class="detail-row">
-          <span class="detail-label">Fecha:</span>
-          <span class="detail-value">${data.dia}</span>
-        </div>
-        
-        <div class="detail-row">
-          <span class="detail-label">Hora:</span>
-          <span class="detail-value">${data.hora}</span>
-        </div>
-        
-        <div class="detail-row" style="border-bottom: none;">
-          <span class="detail-label">Duración:</span>
-          <span class="detail-value">${data.duracion} hora(s)</span>
-        </div>
-        
-        <div class="total">
-          Total a pagar: $${data.total} MXN
-        </div>
-      </div>
-      
-      <p><strong>Código de reservación:</strong> #${data.idReservacion}</p>
-      
-      <p style="background: #fef3c7; padding: 15px; border-radius: 6px; border-left: 4px solid #f59e0b;">
-        ⚠️ <strong>Importante:</strong> Por favor llega 5 minutos antes de tu hora reservada. 
-        Si necesitas cancelar, hazlo con al menos 2 horas de anticipación.
-      </p>
-      
-      <center>
-        <a href="${process.env.APP_URL}/reservaciones/${data.idReservacion}" class="button">
-          Ver mi reservación
-        </a>
-      </center>
-    </div>
-    
-    <div class="footer">
-      <p>Cyber Gaming - Tu lugar favorito para jugar</p>
-      <p style="font-size: 12px; color: #9ca3af;">
-        Si tienes preguntas, responde a este correo o llámanos al (951) 123-4567
-      </p>
-    </div>
+<div class="wrap">
+  <div class="header">
+    <div style="font-size:36px">🎮</div>
+    <h1>Reserva Confirmada</h1>
   </div>
-</body>
-</html>
-    `.trim();
-  }
+  <div class="body">
+    <p>Hola <strong>${nombreCliente}</strong>,</p>
+    <p style="margin-top:8px">Tu reserva se creó correctamente. Aquí están los detalles:</p>
 
-  generarTemplateCancelacion(data) {
-    return `
-<!DOCTYPE html>
-<html>
+    <div class="card">
+      <div class="row">
+        <span class="label">Folio / Reserva:</span>
+        <span><strong>#${idReservacion}</strong></span>
+      </div>
+      <div class="row">
+        <span class="label">Videojuego / Consola:</span>
+        <span>${nombreConsola}</span>
+      </div>
+      <div class="row">
+        <span class="label">Fecha de reserva:</span>
+        <span>${fechaInicio}</span>
+      </div>
+      <div class="row">
+        <span class="label">Fecha límite:</span>
+        <span>${fechaLimite}</span>
+      </div>
+      <div class="row">
+        <span class="label">Estado:</span>
+        <span class="badge">${estado}</span>
+      </div>
+    </div>
+
+    <p style="margin-top:16px">Gracias por usar nuestro sistema. ¡Te esperamos!</p>
+  </div>
+  <div class="footer">
+    <p>Cyber Gaming &mdash; Tu lugar favorito para jugar</p>
+  </div>
+</div>
+</body>
+</html>`;
+}
+
+function templateCancelacion({ nombreCliente, nombreConsola, fechaOriginal, motivo }) {
+  return `<!DOCTYPE html>
+<html lang="es">
 <head>
   <meta charset="utf-8">
   <style>
-    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-    .header { background: #ef4444; color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-    .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
-    .card { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; }
+    body{font-family:Arial,sans-serif;background:#f3f4f6;color:#333;padding:20px}
+    .wrap{max-width:600px;margin:0 auto}
+    .header{background:#ef4444;color:#fff;padding:32px;text-align:center;border-radius:12px 12px 0 0}
+    .body{background:#fff;padding:28px;border-radius:0 0 12px 12px;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+    .card{background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:16px;margin:20px 0;font-size:14px}
+    .footer{text-align:center;font-size:12px;color:#9ca3af;margin-top:24px}
   </style>
 </head>
 <body>
-  <div class="container">
-    <div class="header">
-      <h1>❌ Reservación Cancelada</h1>
+<div class="wrap">
+  <div class="header"><h1>❌ Reservación Cancelada</h1></div>
+  <div class="body">
+    <p>Hola <strong>${nombreCliente}</strong>,</p>
+    <p style="margin-top:8px">Tu reservación ha sido cancelada.</p>
+    <div class="card">
+      <p><strong>Consola:</strong> ${nombreConsola}</p>
+      <p style="margin-top:8px"><strong>Fecha original:</strong> ${fechaOriginal}</p>
+      <p style="margin-top:8px"><strong>Motivo:</strong> ${motivo}</p>
     </div>
-    
-    <div class="content">
-      <p>Hola <strong>${data.nombreCliente}</strong>,</p>
-      <p>Tu reservación ha sido cancelada.</p>
-      
-      <div class="card">
-        <p><strong>Consola:</strong> ${data.nombreConsola}</p>
-        <p><strong>Fecha original:</strong> ${data.fechaOriginal}</p>
-        <p><strong>Motivo:</strong> ${data.motivo}</p>
-      </div>
-      
-      <p>Esperamos verte pronto. Puedes hacer una nueva reservación en cualquier momento.</p>
-    </div>
+    <p>Esperamos verte pronto. Puedes hacer una nueva reservación cuando gustes.</p>
   </div>
+  <div class="footer"><p>Cyber Gaming &mdash; Tu lugar favorito para jugar</p></div>
+</div>
 </body>
-</html>
-    `.trim();
-  }
-
-  generarTemplateRecordatorio(data) {
-    return `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <style>
-    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-    .header { background: #f59e0b; color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-    .content { background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }
-    .highlight { background: #fef3c7; padding: 20px; border-radius: 8px; text-align: center; font-size: 18px; margin: 20px 0; }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <h1>⏰ Recordatorio de Reservación</h1>
-    </div>
-    
-    <div class="content">
-      <p>Hola <strong>${data.nombreCliente}</strong>,</p>
-      <p>Solo para recordarte que mañana tienes una reservación:</p>
-      
-      <div class="highlight">
-        <strong>🎮 ${data.nombreConsola}</strong><br>
-        ⏰ ${data.hora}<br>
-        ⏱️ ${data.duracion} hora(s)
-      </div>
-      
-      <p>¡Te esperamos! 🎉</p>
-    </div>
-  </div>
-</body>
-</html>
-    `.trim();
-  }
+</html>`;
 }

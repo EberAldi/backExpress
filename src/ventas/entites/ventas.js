@@ -20,6 +20,7 @@ const Venta = new EntitySchema({
     },
     empleadoId: {
       type: "int",
+      nullable: true,
     },
     sesionId: {
       type: "int",
@@ -33,6 +34,29 @@ const Venta = new EntitySchema({
     },
     promocionId: {
       type: "uuid",
+      nullable: true,
+    },
+    puntosUsados: {
+      type: "int",
+      default: 0,
+    },
+    canjeToken: {
+      type: "varchar",
+      nullable: true,
+      unique: true,
+    },
+    canjeCodigo: {
+      type: "varchar",
+      length: 8,
+      nullable: true,
+      unique: true,
+    },
+    canjeado: {
+      type: "boolean",
+      default: false,
+    },
+    canjeadoEn: {
+      type: "timestamp",
       nullable: true,
     },
   },
@@ -54,7 +78,12 @@ const Venta = new EntitySchema({
       type: "one-to-many",
       target: "DetalleVenta",
       inverseSide: "venta",
-      eager: true,  // siempre cargar detalles con la venta
+      eager: true,
+    },
+    pagos: {
+      type: "one-to-many",
+      target: "Pago",
+      inverseSide: "venta",
     },
   },
 });

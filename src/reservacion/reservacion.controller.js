@@ -29,7 +29,7 @@ router.post("/", async (req, res) => {
 
 router.patch("/:id/confirmar", async (req, res) => {
   try {
-    res.json(await reservacionService.confirmar(req.params.id));
+    res.json(await reservacionService.confirmar(req.params.id, req.body));
   } catch (e) {
     res.status(e.status || 500).json({ message: e.message });
   }

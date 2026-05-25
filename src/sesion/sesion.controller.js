@@ -11,6 +11,14 @@ router.get("/", async (req, res) => {
   }
 });
 
+router.get("/detalle", async (req, res) => {
+  try {
+    res.json(await sesionService.getAllDetalle());
+  } catch (e) {
+    res.status(e.status || 500).json({ message: e.message });
+  }
+});
+
 // Sesiones activas ahora mismo — útil para el dashboard
 router.get("/activas", async (req, res) => {
   try {

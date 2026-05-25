@@ -1,10 +1,27 @@
 import { AppDataSource } from "../data-source.js";
+import { Between } from "typeorm";
+import {
+  notificarSesionPorTerminar,
+  notificarReservacionProxima,
+} from "../services/web.push.service.js";
+import { sumarPuntos } from "../cliente/cliente.service.js";
 
 const repo = () => AppDataSource.getRepository("Sesion");
 const consolaRepo = () => AppDataSource.getRepository("Consola");
 
 export async function getAll() {
   return repo().find({ relations: ["consola", "empleado"] });
+}
+
+export async function getAllDetalle() {
+  const sesiones = await repo().find({
+    relations: ["consola", "empleado", "cliente", "reservacion"],
+    order: { inicio: "DESC" },
+  });
+  return sesiones.map((s) => ({
+    ...s,
+    esReservada: s.reservacionId !== null,
+  }));
 }
 
 export async function getById(id) {
@@ -26,13 +43,13 @@ export async function getActivas() {
 export async function abrir({
   consolaId,
   empleadoId,
-  clienteId,
+  clienteId: _clienteId = null,
   juegoId = null,
   duracionHoras = 1,
   reservacionId = null,
   configuracionAplicadaId = null,
 }) {
-  if (!clienteId) throw { status: 400, message: "clienteId es requerido" };
+  let clienteId = _clienteId;
 
   const consola = await consolaRepo().findOne({ where: { id: consolaId } });
   if (!consola) throw { status: 404, message: "Consola no encontrada" };
@@ -50,7 +67,7 @@ export async function abrir({
     if (!juego) throw { status: 400, message: "Ese juego no está disponible en esta consola" };
   }
 
-  // validar reservacion si viene
+  // Si viene reservacionId: validar estado y heredar clienteId si no se mandó
   if (reservacionId) {
     const reservacion = await AppDataSource.getRepository("Reservacion").findOne({
       where: { id: reservacionId },
@@ -59,6 +76,7 @@ export async function abrir({
     if (!["pendiente", "confirmada"].includes(reservacion.estado)) {
       throw { status: 400, message: `La reservación está en estado "${reservacion.estado}"` };
     }
+    if (!clienteId) clienteId = reservacion.clienteId;
   }
 
   // precio histórico: base de la consola, sobreescrito si hay configuración activa
@@ -127,6 +145,10 @@ export async function cerrar(id) {
     });
   }
 
+  if (sesion.clienteId) {
+    await sumarPuntos(sesion.clienteId, sesion.duracionHoras * 10, "sesion", `${sesion.duracionHoras} hora(s) de renta`);
+  }
+
   return saved;
 }
 
@@ -141,6 +163,13 @@ export async function autoCerrarSesiones() {
   for (const sesion of sesiones) {
     const inicio = new Date(sesion.inicio);
     const tiempoFinal = new Date(inicio.getTime() + sesion.duracionHoras * 60 * 60 * 1000);
+    const minutosRestantes = (tiempoFinal - ahora) / 60000;
+
+    // Aviso 5 min antes de que termine
+    if (minutosRestantes <= 5 && minutosRestantes > 0 && !sesion.avisoFinalEnviado) {
+      notificarSesionPorTerminar(sesion).catch(console.error);
+      await repo().update(sesion.id, { avisoFinalEnviado: true });
+    }
 
     if (ahora >= tiempoFinal) {
       const totalMinutos = sesion.duracionHoras * 60;
@@ -161,8 +190,32 @@ export async function autoCerrarSesiones() {
         });
       }
 
+      if (sesion.clienteId) {
+        await sumarPuntos(sesion.clienteId, sesion.duracionHoras * 10, "sesion", `${sesion.duracionHoras} hora(s) de renta`);
+      }
+
       console.log(`Sesión ${sesion.id} cerrada automáticamente`);
     }
+  }
+}
+
+export async function checarReservacionesProximas() {
+  const ahora = new Date();
+  const en35min = new Date(ahora.getTime() + 35 * 60 * 1000);
+  const en25min = new Date(ahora.getTime() + 25 * 60 * 1000);
+
+  const proximas = await AppDataSource.getRepository("Reservacion").find({
+    where: {
+      estado: "confirmada",
+      fechaInicio: Between(en25min, en35min),
+      avisoEnviado: false,
+    },
+    relations: ["consola", "cliente"],
+  });
+
+  for (const reservacion of proximas) {
+    notificarReservacionProxima(reservacion).catch(console.error);
+    await AppDataSource.getRepository("Reservacion").update(reservacion.id, { avisoEnviado: true });
   }
 }
 

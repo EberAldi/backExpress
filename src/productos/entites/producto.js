@@ -25,6 +25,15 @@ const Producto = new EntitySchema({
       type: "enum",
       enum: ["comida", "bebida", "accesorio"],
     },
+    costoEnPuntos: {
+      type: "int",
+      nullable: true,
+      default: null,
+    },
+    disponibleConPuntos: {
+      type: "boolean",
+      default: false,
+    },
   },
   relations: {
     detalles: {

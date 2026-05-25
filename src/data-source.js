@@ -14,6 +14,7 @@ import configuracion from "./configuracion/entities/configuracion.js";
 import pago from "./pago/entities/pago.js";
 import promocion from "./promocion/entities/promocion.js";
 import reservacion from "./reservacion/entities/reservacion.js";
+import HistorialPuntos from "./puntos/historialPuntos.js";
 dotenv.config();
 
 export const AppDataSource = new DataSource({
@@ -26,11 +27,7 @@ export const AppDataSource = new DataSource({
   synchronize: true,
 
   logging: false,
-ssl: {
 
-rejectUnauthorized: false,
-
-},
   entities: [User,
     Consola,
     Control,
@@ -43,6 +40,7 @@ rejectUnauthorized: false,
     configuracion,
     pago,
     promocion,
-    reservacion
+    reservacion,
+    HistorialPuntos,
   ],
 });

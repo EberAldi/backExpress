@@ -30,6 +30,24 @@ router.get("/ingresos", async (req, res) => {
   }
 });
 
+// VENTAS ÚLTIMOS 7 DÍAS
+router.get("/ventas-semana", async (req, res) => {
+  try {
+    res.json(await dashboardService.getVentasSemana());
+  } catch (e) {
+    res.status(500).json({ message: e.message });
+  }
+});
+
+// CONSOLAS MÁS RENTADAS
+router.get("/consolas-top", async (req, res) => {
+  try {
+    res.json(await dashboardService.getConsolasTop());
+  } catch (e) {
+    res.status(500).json({ message: e.message });
+  }
+});
+
 // ÚLTIMAS VENTAS
 router.get("/ultimas-ventas", async (req, res) => {
   try {

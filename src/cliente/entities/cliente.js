@@ -16,7 +16,10 @@ export default new EntitySchema({
     actualizadoEn: { type: "timestamp", default: () => "CURRENT_TIMESTAMP", onUpdate: "CURRENT_TIMESTAMP" },
     eliminadoEn: { type: "timestamp", nullable: true },
     isActive: { type: "boolean", default: true },
-    password: { type: "varchar", nullable: true }
+    password: { type: "varchar", nullable: true },
+    googleId: { type: "varchar", nullable: true, unique: true },
+    auth0Id: { type: "varchar", nullable: true, unique: true },
+    avatar: { type: "varchar", nullable: true }
   },
   relations: {
     sesiones: {

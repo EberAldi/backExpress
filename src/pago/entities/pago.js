@@ -11,7 +11,7 @@ export default new EntitySchema({
     },
     estado: {
       type: "enum",
-      enum: ["pendiente", "procesando", "completado", "fallido", "reembolsado"]
+      enum: ["pendiente", "procesando", "completado", "fallido", "reembolsado", "APRO"]
     },
     // Mercado Pago
     mpPreferenceId: { type: "varchar", nullable: true },
@@ -29,17 +29,23 @@ export default new EntitySchema({
     sesion: {
       type: "many-to-one",
       target: "Sesion",
-      joinColumn: { name: "sesionId" }
+      joinColumn: { name: "sesionId" },
+      nullable: true,
+      onDelete: "SET NULL",
     },
     reservacion: {
       type: "many-to-one",
       target: "Reservacion",
-      joinColumn: { name: "reservacionId" }
+      joinColumn: { name: "reservacionId" },
+      nullable: true,
+      onDelete: "SET NULL",
     },
     venta: {
       type: "many-to-one",
       target: "Venta",
-      joinColumn: { name: "ventaId" }
-    }
+      joinColumn: { name: "ventaId" },
+      nullable: true,
+      onDelete: "SET NULL",
+    },
   }
 });

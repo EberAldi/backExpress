@@ -1,12 +1,29 @@
 import { Router } from "express";
 import * as clienteService from "./cliente.service.js";
-import { getHistorial, getReservaciones } from "./cliente.service.js";
+import { getHistorial, getReservaciones, getHistorialPuntos } from "./cliente.service.js";
 
 const router = Router();
 
 router.get("/", async (req, res) => {
   try {
     res.json(await clienteService.getAll());
+  } catch (e) {
+    res.status(e.status || 500).json({ message: e.message });
+  }
+});
+
+router.get("/ranking", async (req, res) => {
+  try {
+    res.json(await clienteService.getByPuntos());
+  } catch (e) {
+    res.status(e.status || 500).json({ message: e.message });
+  }
+});
+
+router.get("/:id/puntos", async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit) || 20;
+    res.json(await getHistorialPuntos(req.params.id, limit));
   } catch (e) {
     res.status(e.status || 500).json({ message: e.message });
   }

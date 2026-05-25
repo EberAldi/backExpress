@@ -1,207 +1,97 @@
-// src/services/mercadopago.service.js
+import { MercadoPagoConfig, Preference } from "mercadopago";
 
-import {
-  MercadoPagoConfig,
-  Preference,
-} from 'mercadopago'
-
-// ─────────────────────────────
-// CLIENTE
-// ─────────────────────────────
+const isSandbox = process.env.MP_SANDBOX === "true";
 
 const client = new MercadoPagoConfig({
-  accessToken:
-    process.env.MP_ACCESS_TOKEN,
-})
+  accessToken: process.env.MP_ACCESS_TOKEN,
+});
 
+// ── Preferencia para cobrar una sesión ────────────────────────
+export async function crearPreferenciaSesion({ sesion, consola, total }) {
+  const preference = new Preference(client);
 
-// ─────────────────────────────
-// CREAR PREFERENCIA SESIÓN
-// ─────────────────────────────
+  const backUrls = {
+    success: `${process.env.FRONTEND_URL}/pago/exito`,
+    failure: `${process.env.FRONTEND_URL}/pago/error`,
+    pending: `${process.env.FRONTEND_URL}/pago/pendiente`,
+  };
 
-export async function crearPreferenciaSesion({
-  sesion,
-  consola,
-  total,
-}) {
-
-  const preference =
-    new Preference(client)
+  // auto_return solo funciona con URLs públicas (no localhost)
+  const esLocal = (process.env.FRONTEND_URL ?? "").includes("localhost");
 
   const body = {
-
     items: [
       {
         id: String(sesion.id),
-
-        title:
-          `Renta ${consola.nombre}`,
-
-        description:
-          `Sesión de juego - ${sesion.duracionHoras} hora(s)`,
-
+        title: `Renta ${consola.nombre}`,
+        description: `Sesión de juego - ${sesion.duracionHoras} hora(s)`,
         quantity: 1,
-
-        currency_id: 'MXN',
-
-        unit_price:
-          Number(total),
+        currency_id: "MXN",
+        unit_price: Number(total),
       },
     ],
+    external_reference: String(sesion.id),
+    // BASE_URL = URL pública del backend (usada por MercadoPago para notificaciones)
+    notification_url: `${process.env.BASE_URL}/api/pagos/webhook`,
+    back_urls: backUrls,
+    ...(esLocal ? {} : { auto_return: "approved" }),
+    payment_methods: { installments: 12 },
+    metadata: { sesionId: sesion.id, consola: consola.nombre },
+  };
 
-    external_reference:
-      String(sesion.id),
+  const result = await preference.create({ body });
 
-    notification_url:
-      `${process.env.BACKEND_URL}/pagos/webhook`,
-
-    back_urls: {
-
-      success:
-        `${process.env.FRONTEND_URL}/pago/exito`,
-
-      failure:
-        `${process.env.FRONTEND_URL}/pago/error`,
-
-      pending:
-        `${process.env.FRONTEND_URL}/pago/pendiente`,
-    },
-
-    auto_return:
-      'approved',
-
-    payment_methods: {
-
-      excluded_payment_types: [],
-
-      installments: 12,
-    },
-
-    metadata: {
-      sesionId:
-        sesion.id,
-
-      consola:
-        consola.nombre,
-    },
-  }
-
-  const result =
-    await preference.create({
-      body,
-    })
-
+  const payUrl = isSandbox ? result.sandbox_init_point : result.init_point;
   return {
-
-    preferenceId:
-      result.id,
-
-    initPoint:
-      result.init_point,
-
-    sandboxInitPoint:
-      result.sandbox_init_point,
-
-    qr:
-      `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(result.init_point)}`,
-  }
+    preferenceId: result.id,
+    initPoint: result.init_point,
+    sandboxInitPoint: result.sandbox_init_point,
+    qr: `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(payUrl)}`,
+  };
 }
 
+// ── Preferencia genérica (POS / venta directa) ────────────────
+export async function crearPreferenciaGenerica({ total, titulo, ventaId = null }) {
+  const preference = new Preference(client);
 
-// ─────────────────────────────
-// CREAR PREFERENCIA GENÉRICA POS
-// ─────────────────────────────
-
-export async function crearPreferenciaGenerica({
-  total,
-  titulo,
-}) {
-
-  const preference =
-    new Preference(client)
+  const esLocal = (process.env.FRONTEND_URL ?? "").includes("localhost");
 
   const body = {
-
     items: [
       {
-        title:
-          titulo,
-
+        title: titulo,
         quantity: 1,
-
-        currency_id: 'MXN',
-
-        unit_price:
-          Number(total),
+        currency_id: "MXN",
+        unit_price: Number(total),
       },
     ],
-
-    notification_url:
-      `${process.env.BACKEND_URL}/pagos/webhook`,
-
+    ...(ventaId ? { external_reference: String(ventaId) } : {}),
+    notification_url: `${process.env.BASE_URL}/api/pagos/webhook`,
     back_urls: {
-
-      success:
-        `${process.env.FRONTEND_URL}/pago/exito`,
-
-      failure:
-        `${process.env.FRONTEND_URL}/pago/error`,
-
-      pending:
-        `${process.env.FRONTEND_URL}/pago/pendiente`,
+      success: `${process.env.FRONTEND_URL}/pago/exito`,
+      failure: `${process.env.FRONTEND_URL}/pago/error`,
+      pending: `${process.env.FRONTEND_URL}/pago/pendiente`,
     },
+    ...(esLocal ? {} : { auto_return: "approved" }),
+  };
 
-    auto_return:
-      'approved',
-  }
+  const result = await preference.create({ body });
 
-  const result =
-    await preference.create({
-      body,
-    })
-
+  const payUrl = isSandbox ? result.sandbox_init_point : result.init_point;
   return {
-
-    preferenceId:
-      result.id,
-
-    initPoint:
-      result.init_point,
-
-    sandboxInitPoint:
-      result.sandbox_init_point,
-
-    qr:
-      `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(result.init_point)}`,
-  }
+    preferenceId: result.id,
+    initPoint: result.init_point,
+    sandboxInitPoint: result.sandbox_init_point,
+    qr: `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(payUrl)}`,
+  };
 }
 
-
-// ─────────────────────────────
-// OBTENER ESTADO DEL PAGO
-// ─────────────────────────────
-
-export async function obtenerEstadoPago(
-  paymentId
-) {
-
-  const response =
-    await fetch(
-      `https://api.mercadopago.com/v1/payments/${paymentId}`,
-      {
-        headers: {
-          Authorization:
-            `Bearer ${process.env.MP_ACCESS_TOKEN}`,
-        },
-      }
-    )
-
-  if (!response.ok) {
-
-    throw new Error(
-      'No se pudo obtener el pago'
-    )
-  }
-
-  return await response.json()
+// ── Consultar estado de un pago ───────────────────────────────
+export async function obtenerEstadoPago(paymentId) {
+  const response = await fetch(
+    `https://api.mercadopago.com/v1/payments/${paymentId}`,
+    { headers: { Authorization: `Bearer ${process.env.MP_ACCESS_TOKEN}` } }
+  );
+  if (!response.ok) throw new Error("No se pudo obtener el pago");
+  return response.json();
 }

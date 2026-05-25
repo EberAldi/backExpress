@@ -21,7 +21,8 @@ export default new EntitySchema({
     creadoEn: { type: "timestamp", default: () => "CURRENT_TIMESTAMP" },
     canceladoEn: { type: "timestamp", nullable: true },
     motivoCancelacion: { type: "text", nullable: true },
-    notas: { type: "text", nullable: true }
+    notas: { type: "text", nullable: true },
+    avisoEnviado: { type: "boolean", default: false }
   },
   relations: {
     cliente: {

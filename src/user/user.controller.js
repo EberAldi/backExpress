@@ -44,4 +44,24 @@ router.delete("/:id", async (req, res) => {
   }
 });
 
+// GET /api/users/vapid-public-key
+router.get("/vapid-public-key", (req, res) => {
+  res.json({ publicKey: process.env.VAPID_PUBLIC_KEY });
+});
+
+// POST /api/users/:id/push-subscribe
+// Body: { subscription: { endpoint, keys: { p256dh, auth } } }
+router.post("/:id/push-subscribe", async (req, res) => {
+  try {
+    const { subscription } = req.body ?? {};
+    if (!subscription?.endpoint) {
+      return res.status(400).json({ message: "Suscripción inválida" });
+    }
+    await userService.savePushSubscription(Number(req.params.id), subscription);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(e.status || 500).json({ message: e.message });
+  }
+});
+
 export default router;

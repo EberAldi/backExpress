@@ -3,6 +3,7 @@ import express from "express";
 import { AppDataSource } from "./data-source.js";
 import cors from "cors";
 import morgan from "morgan";
+import { auth } from "express-openid-connect";
 
 import userRoutes from "./user/user.controller.js";
 import authRoutes from "./auth/auth.controller.js";
@@ -23,6 +24,7 @@ import passport from "./auth/google.strategy.js";
 
 import {
   autoCerrarSesiones,
+  checarReservacionesProximas,
 } from "./sesion/sesion.service.js";
 
 const app = express();
@@ -30,6 +32,27 @@ const app = express();
 app.use(express.json());
 app.use(cors());
 app.use(morgan("dev"));
+
+// Auth0 — solo se activa si todas las variables están presentes
+// Las rutas /api/auth/login y /api/auth/cliente/login siempre son públicas
+const auth0Configurado =
+  process.env.CLIENT_ID &&
+  process.env.ISSUER_BASE_URL &&
+  process.env.SECRET &&
+  process.env.BASE_URL;
+
+if (auth0Configurado) {
+  app.use(
+    auth({
+      authRequired: false,   // nunca bloquea rutas por defecto
+      auth0Logout: true,
+      secret: process.env.SECRET,
+      baseURL: process.env.BASE_URL,
+      clientID: process.env.CLIENT_ID,
+      issuerBaseURL: process.env.ISSUER_BASE_URL,
+    })
+  );
+}
 
 app.use(passport.initialize());
 
@@ -56,22 +79,22 @@ AppDataSource.initialize()
     app.use("/api/pagos", pagosRoutes);
     app.use("/api/pagos", pagoRoutes);
 
-    // AUTO CIERRE
+    // AUTO CIERRE + AVISOS
     setInterval(async () => {
-
       try {
-
         await autoCerrarSesiones();
-
       } catch (error) {
-
-        console.error(
-          "Error autocierre:",
-          error
-        );
+        console.error("Error autocierre:", error);
       }
-
     }, 30000);
+
+    setInterval(async () => {
+      try {
+        await checarReservacionesProximas();
+      } catch (error) {
+        console.error("Error checar reservaciones próximas:", error);
+      }
+    }, 60000);
 
     app.listen(PORT, () => {
 
