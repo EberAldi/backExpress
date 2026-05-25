@@ -29,8 +29,17 @@ import {
 
 const app = express();
 
+const origenesPermitidos = [
+  "http://localhost:5173",
+  "http://localhost:3000",
+  process.env.FRONTEND_URL,
+].filter(Boolean);
+
 app.use(express.json());
-app.use(cors());
+app.use(cors({
+  origin: origenesPermitidos,
+  credentials: true,
+}));
 app.use(morgan("dev"));
 
 // Auth0 — solo se activa si todas las variables están presentes
